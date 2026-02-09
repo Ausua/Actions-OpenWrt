@@ -1,0 +1,46 @@
+name: Build R2S OpenWrt 25.12 Custom
+on:
+workflow_dispatch:
+jobs:
+build:
+runs-on: ubuntu-22.04
+steps:
+- name: Checkout
+uses: actions/checkout@v4
+- name: Init Env
+run: |
+sudo apt-get update
+sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev python3-distutils rsync unzip zlib1g-dev file wget
+- name: Source Code & Feeds
+run: |
+git clone -b openwrt-25.12 --single-branch https://github.com/openwrt/openwrt openwrt
+cd openwrt
+echo "src-git passwall_packages [可疑链接已删除]" >> feeds.conf.default
+echo "src-git passwall [可疑链接已删除]" >> feeds.conf.default
+./scripts/feeds update -a
+./scripts/feeds install -a
+- name: Custom Scripts (IP & Password)
+run: |
+cd openwrt
+sed -i 's/192.168.1.1/192.168.5.1/g' package/base-files/files/bin/config_generate
+sed -i 's/root:::0:99999:7:::/root::0:99999:7:::/g' package/base-files/files/etc/shadow
+- name: Configuration
+run: |
+cd openwrt
+echo "CONFIG_TARGET_rockchip=y" > .config
+echo "CONFIG_TARGET_rockchip_armv8=y" >> .config
+echo "CONFIG_TARGET_rockchip_armv8_DEVICE_friendlyarm_nanopi-r2s=y" >> .config
+echo "CONFIG_TARGET_ROOTFS_PARTSIZE=2048" >> .config
+echo "CONFIG_PACKAGE_luci=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-passwall=y" >> .config
+echo "CONFIG_PACKAGE_luci-i18n-passwall-zh-cn=y" >> .config
+make defconfig
+- name: Compile
+run: |
+cd openwrt
+make -j$(nproc) || make -j1 V=s
+- name: Upload
+uses: actions/upload-artifact@v4
+with:
+name: R2S-OpenWrt-25.12-Passwall
+path: openwrt/bin/targets/rockchip/armv8/*.img.gz
